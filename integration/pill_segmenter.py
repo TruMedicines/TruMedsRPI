@@ -103,18 +103,23 @@ class PillSegmenter:
 	def crop_qr(self, thresh, xl=300, xh=1500, yl=1200, yh=800):
 		og_quart = self.original_image.copy()[1400:, :1500]
 		ogg = cv2.cvtColor(og_quart, cv2.COLOR_BGR2GRAY)
-		#th = cv2.adaptiveThreshold(ogg, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 41, 5)
-		__, th = cv2.threshold(ogg, 100, 255, 0)
+		kernel = np.ones((3,3), np.uint8)
+		__, th = cv2.threshold(ogg, 80, 255, 0)
 		cv2.imwrite(self.save_folder + '/qr_code_thresh.jpg', th)
+		th = cv2.erode(th, kernel, iterations=2)
             
 		contours = cv2.findContours(th, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)[-2]
+		
 		contour_sorted = sorted(contours, key=cv2.contourArea)
 		index = -1
 
-		while cv2.contourArea(contour_sorted[index]) > 10000:
+		while cv2.contourArea(contour_sorted[index]) > 25000:
 			x = contour_sorted[index]
+			#cv2.drawContours(og_quart, [x], 0, (0,0,255), 2)
 			index -= 1
             
+		#cv2.imwrite('images/qrconntours.jpg', og_quart)
+
 		x,y,w,h=self.get_bounding_rect(x)
 		qr_img = og_quart[y-30:y+h+30, x-30:x+w+30]
 		cv2.imwrite(self.save_folder + '/qr_code.jpg', qr_img)

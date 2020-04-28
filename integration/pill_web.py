@@ -1,5 +1,5 @@
 print("Importing Libraries")
-from flask import Flask, render_template, redirect, url_for, send_file
+from flask import Flask, render_template, redirect, url_for, send_file, request
 import datetime
 import CompiledCode as cc
 
@@ -8,7 +8,8 @@ app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 
 # Set up title, headers, etc for home page
-def template(title = "PILL WEB APP", text = "Home Page"):
+def template(title = "Current Pill: 0", text = "Home Page"):
+    title = "Current Pill: " + str(cc.get_pill_index())
     now = datetime.datetime.now()
     timeString = now
     templateData = {
@@ -21,6 +22,15 @@ def template(title = "PILL WEB APP", text = "Home Page"):
 # Set home page
 @app.route("/")
 def hello():
+    templateData = template()
+    return render_template('main.html', **templateData)
+    
+@app.route('/', methods=['POST'])
+def my_form_post():
+    text = request.form['text']
+    num = int(text)
+    print(num)
+    cc.set_pill_index(num)
     templateData = template()
     return render_template('main.html', **templateData)
     
@@ -40,18 +50,18 @@ def pics():
     
 @app.route("/analyze")
 def run_analysis():
-    a, pill_index = cc.analysis(True)
-    message = "Analyzed pill #" + str(pill_index-1)
+    a, pill_index, __ = cc.analysis(True)
+    message = "Analyzed pill #" + str(pill_index)
     templateData = template(text = message)
     return render_template('main.html', **templateData)
     
 @app.route("/databasematch")
 def find_match():
    
-    cc.finalize_database()
+    #cc.finalize_database()
     
-    message, pi = cc.analysis(False)
-    templateData = template(text = "This is pill #" + str(message))
+    c, npi, num = cc.analysis(False)
+    templateData = template(text = "This is pill #" + num + " (" + str(c) + ")")
     return render_template('main.html', **templateData)
 
 @app.route("/finalpill")

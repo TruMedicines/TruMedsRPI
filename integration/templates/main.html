@@ -1,13 +1,18 @@
 <!DOCTYPE html>
 <head>
-  <title>{{ title }}</title>
+  <title>PILL WEB APP</title>
 </head>
 
 <body>
-  <h1>PILL WEB APP</h1>
+  <h1>{{ title }}</h1>
   <h2>Current Date: {{ time }}</h2>
   <h2> {{ text }} </h2>
   
+  <br>
+  <form method="POST">
+    <input name="text">
+    <input type="submit">
+  </form>
   <br>
   <img src = "/finalpill" alt = "Pill Image">
   <img src = "/qrimage" alt = "QR Image">

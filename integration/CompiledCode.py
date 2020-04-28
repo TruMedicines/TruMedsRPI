@@ -7,6 +7,7 @@ import pill_analyzer as pa
 import pill_segmenter as ps
 from picamera import PiCamera
 import cv2
+import qr_reader as qr
 
 ser = serial.Serial('/dev/ttyACM0', 9600, timeout=1)
 ser.flush()
@@ -19,110 +20,122 @@ seg.circle_thresh =8 #11 is default
 print("Finished Setup")
 
 def sendByte(sentence, ser):
-        sentence = sentence + "\n"
-        ser.write(sentence.encode('ascii'))
+    sentence = sentence + "\n"
+    ser.write(sentence.encode('ascii'))
 
 def readByte(sentence, ser):
-        line = ""
-        while line != sentence:
-                if ser.in_waiting > 0:
-                    line = ser.readline().decode('utf-8').rstrip()
+    line = ""
+    while line != sentence:
+        if ser.in_waiting > 0:
+            line = ser.readline().decode('utf-8').rstrip()
 
 
 def takePhotos(ser): # takes photos of next day's pills
-        # backlight photo
-        readByte("backlight on", ser) 
-        with PiCamera() as camera:
-                camera.resolution=(3280,2464)
-                print("Taking contour photo")
-                time.sleep(2)
-                camera.capture('rpi_photo.jpg')
-                print("took contour photo")
-                # front light photo
-                sendByte("took contour", ser)
-                readByte("front light on", ser)
-                print("Taking bright photo")
-                time.sleep(2)
-                camera.capture('lit_photo.jpg')
-                print("took front photo")
-                # send confirmation
-                sendByte("took front photo", ser)
+    # backlight photo
+    readByte("backlight on", ser) 
+    with PiCamera() as camera:
+        camera.resolution=(3280,2464)
+        print("Taking contour photo")
+        time.sleep(2)
+        camera.capture('rpi_photo.jpg')
+        print("took contour photo")
+        # front light photo
+        sendByte("took contour", ser)
+        readByte("front light on", ser)
+        print("Taking bright photo")
+        time.sleep(2)
+        camera.capture('lit_photo.jpg')
+        print("took front photo")
+        # send confirmation
+        sendByte("took front photo", ser)
 
 def segmentation():
-        seg.original_image = cv2.imread('rpi_photo.jpg')
-        seg.bright_image = cv2.imread('lit_photo.jpg')
-        num_pills = seg.segment_pills(debug_mode=True)
-        return num_pills
+    seg.original_image = cv2.imread('rpi_photo.jpg')
+    seg.bright_image = cv2.imread('lit_photo.jpg')
+    num_pills = seg.segment_pills(debug_mode=True)
+    return num_pills
 
 def analysis(building_database, num_pills=1):
-        print("Analyzing pill(s)")
-        a = "no match"
-        #an.qr_image = cv2.imread('images/qr_code.jpg')
-        #print("Searching for QR Code")
-        #print("QR code: %s" %an.decode_qr())
-        #print("Processing Pill(s)")
-        for i in range(num_pills):
-                enc = an.get_encoding_from_src('images/lit_pill' + str(i) + '.jpg')
-                if building_database:
-                        add_to_database(enc)
-                else:
-                        a, dist = an.get_database_match(enc)
-                        print("Match: ", a)
-                        print("Distances: ", dist[0])
-        return a, an.pill_index
+    print("Analyzing pill(s)")
+    a = "no match"
+    n = "none"
+    if building_database:
+        print("Searching for QR Code")
+        a, in_db = qr.write_to_file('images/qr_code.jpg', an.pill_index)            
+        print("QR code: %s" %a)
+    else:
+        a, n = qr.read_file('images/qr_code.jpg')
+    #print("Processing Pill(s)")
+    #for i in range(num_pills):
+    #        enc = an.get_encoding_from_src('images/lit_pill' + str(i) + '.jpg')
+    #        if building_database:
+    #                add_to_database(enc)
+    #        else:
+    #                a, dist = an.get_database_match(enc)
+    #                print("Match: ", a)
+    #                print("Distances: ", dist[0])
+    return a, an.pill_index, n
                         
                 
 def add_to_database(enc):
-        an.add_to_dict(enc)
-        print("Index: ", an.pill_index)
-        an.pill_index += 1
-        print(enc)
+    an.add_to_dict(enc)
+    print("Index: ", an.pill_index)
+    an.pill_index += 1
+    print(enc)
         
 def finalize_database():
-        if not an.database_created:
-                print("Finalizing database")
-                an.database_from_dict()
-                an.create_knn()
+    if not an.database_created:
+        print("Finalizing database")
+        an.database_from_dict()
+        an.create_knn()
                 
 def get_path():
-        path = 'finalImages/' + str(0) + '.jpg'
-        return path
+    path = 'finalImages/' + str(0) + '.jpg'
+    return path
+    
+def get_pill_index():
+    print("getting pill index: ", an.pill_index)
+    return an.pill_index
+
+def set_pill_index(index):
+    an.pill_index = index
+    print("set pill index")
         
 def pics_only():
-        time.sleep(3) # need a delay to send first byte
-        sendByte("pics", ser)
-        print("starting pics only")
-        takePhotos(ser)
-        num_pills = segmentation()
-        shutil.copyfile('images/lit_pill0.jpg', 'finalImages/' + str(0) + '.jpg')
-        print("done")
-        time.sleep(5)
-        return num_pills
+    time.sleep(3) # need a delay to send first byte
+    sendByte("pics", ser)
+    print("starting pics only")
+    takePhotos(ser)
+    num_pills = segmentation()
+    shutil.copyfile('images/lit_pill0.jpg', 'finalImages/' + str(0) + '.jpg')
+    print("done")
+    time.sleep(5)
+    return num_pills
         
 def scan_pill():
+    time.sleep(3) # need a delay to send first byte
+    sendByte("on", ser)
+    print("starting test")
+    takePhotos(ser)
+    num_pills = segmentation()
+    shutil.copyfile('images/lit_pill0.jpg', 'finalImages/' + str(0) + '.jpg')
+    analysis(num_pills)
+    print("done")
+    time.sleep(5)
+    return num_pills
+
+if __name__ == '__main__':
+        
+    while True:
         time.sleep(3) # need a delay to send first byte
         sendByte("on", ser)
         print("starting test")
         takePhotos(ser)
+        # add Steve's imaging processing stuff here
         num_pills = segmentation()
-        shutil.copyfile('images/lit_pill0.jpg', 'finalImages/' + str(0) + '.jpg')
-        # analysis(num_pills)
+#                analysis(num_pills)
         print("done")
         time.sleep(5)
-        return num_pills
-
-if __name__ == '__main__':
-        
-        while True:
-                time.sleep(3) # need a delay to send first byte
-                sendByte("on", ser)
-                print("starting test")
-                takePhotos(ser)
-                # add Steve's imaging processing stuff here
-                num_pills = segmentation()
-#                analysis(num_pills)
-                print("done")
-                time.sleep(5)
 
             
 """
